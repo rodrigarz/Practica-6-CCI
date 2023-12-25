@@ -1,12 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "mensaje.h"
+//#include "mensaje.h"
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include "msgq.h"
+#include "primitivas.h"
 
 #define SERV_UDP_PORT 8524
 //Direccion saturno (donde esta el cliente)
@@ -67,11 +68,17 @@ main()
         exit(EXIT_FAILURE);
     }
 
-    socklen_t len = sizeof(cliaddr);
 
     //Recibimos del cliente
-    int n = recvfrom(sockfd, (struct Mensaje*)&mensaje_recibe, sizeof(mensaje_recibe), MSG_WAITALL,
-        (struct sockaddr*)&cliaddr, &len);
+   /* int n = recvfrom(sockfd, (struct Mensaje*)&mensaje_recibe, sizeof(mensaje_recibe), MSG_WAITALL,
+        (struct sockaddr*)&cliaddr, &len);*/
+    int n = indicacion(sockfd, &cliaddr, &mensaje_recibe);
+    if (n < 0)
+    {
+        perror("Error al recibir indicacion");
+        close(sockfd);
+        exit(EXIT_FAILURE);
+    }
 
     printf("Received message from client\n");
     printf("Tipo: %d\n", mensaje_recibe.comando);
@@ -94,8 +101,9 @@ main()
     }
  
     mensaje.tipo = 1;
-    sendto(sockfd, (struct Mensaje*)&mensaje, sizeof(mensaje), 0,
-        (const struct sockaddr*)&cliaddr, sizeof(cliaddr));
+    /*sendto(sockfd, (struct Mensaje*)&mensaje, sizeof(mensaje), 0,
+        (const struct sockaddr*)&cliaddr, sizeof(cliaddr));*/
+    int len = peticion(sockfd, &cliaddr, &mensaje);
 
     msgctl(id_cola, IPC_RMID, NULL);
 

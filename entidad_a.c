@@ -1,12 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "mensaje.h"
+//#include "mensaje.h"
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include "msgq.h"
+#include "primitivas.h"
 
 //#define SERV_UDP_PORT 8524
 //Direccion saturno (donde esta el cliente)
@@ -19,6 +20,7 @@ Mensaje mensaje_recibe;
 Mensaje mensaje;
 char mensaje_para_enviar[MAXSIZEDATA];
 char mensaje_para_devolver[MAXSIZEDATA];
+struct sockaddr_in servaddr = { 0 };
 
 int crearCola()
 {
@@ -38,7 +40,7 @@ main()
 	mensaje.tipo = 1;
 	
 	//Llenamos la estructura con 0
-	struct sockaddr_in servaddr = { 0 };
+
 
 	//Creamos socket udp
 	int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -77,8 +79,9 @@ main()
 	mensaje.longitud = strlen(mensaje.data);
 
 	//Enviamos mensaje a servidor
-	int len = sendto(sockfd, (struct Mensaje*)&mensaje, sizeof(mensaje),
-		0, (const struct sockaddr*)&servaddr, sizeof(servaddr));
+	/*int len = sendto(sockfd, (struct Mensaje*)&mensaje, sizeof(mensaje),
+		0, (const struct sockaddr*)&servaddr, sizeof(servaddr));*/
+	int len = peticion(sockfd, &servaddr, &mensaje);
 	if (len == -1)
 	{
 		perror("failed to send");
@@ -86,7 +89,8 @@ main()
 		exit(EXIT_FAILURE);
 	}
 
-	int n = recvfrom(sockfd, (struct Mensaje*)&mensaje_recibe, sizeof(mensaje_recibe), MSG_WAITALL, (struct sockaddr*)&servaddr, &len);
+	//int n = recvfrom(sockfd, (struct Mensaje*)&mensaje_recibe, sizeof(mensaje_recibe), MSG_WAITALL, (struct sockaddr*)&servaddr, &len);
+	int n = indicacion(sockfd, &servaddr, &mensaje_recibe);
 	if (n == -1)
 	{
 		perror("Error al recibir");
