@@ -70,27 +70,16 @@ main()
     socklen_t len = sizeof(cliaddr);
 
     //Recibimos del cliente
-    int n = recvfrom(sockfd, (char*)&mensaje_recibe, sizeof(mensaje_recibe) - 1, MSG_WAITALL,
+    int n = recvfrom(sockfd, (struct Mensaje*)&mensaje_recibe, sizeof(mensaje_recibe), MSG_WAITALL,
         (struct sockaddr*)&cliaddr, &len);
 
-    printf("Received message from client:\n");
-    printf("Tipo: %d\n", mensaje_recibe.tipo);
+    printf("Received message from client\n");
+    printf("Tipo: %d\n", mensaje_recibe.comando);
 
-    //Asignamos tipo 1 a solicitud de eco
-    //if (mensaje_recibe.tipo == 1)
-    //{
-    //    mensaje_manda = convertirAMayusculas(mensaje_recibe.data);
-    //    int i = 0;
-    //    for (i; i <= strlen(mensaje_manda); i++)
-    //    {
-    //        mensaje.data[i] = mensaje_manda[i];
-    //    }
-    //    mensaje.tipo = 0;
-    //}
     char mensaje_recibe_char[MAXSIZEDATA];
     strcpy(mensaje_recibe_char, mensaje_recibe.data);
     
-    int snd = msgsnd(id_cola, mensaje_recibe_char, MAXSIZEDATA, 0);
+    int snd = msgsnd(id_cola, &mensaje_recibe, sizeof(mensaje_recibe), 0);
     if (snd < 0)
     {
         perror("Error al enviar a la cola");
@@ -98,20 +87,14 @@ main()
 
     char mensaje_enviar_char[MAXSIZEDATA];
 
-    int rcv = msgrcv(id_cola, mensaje_enviar_char, MAXSIZEDATA, 0, 0);
+    int rcv = msgrcv(id_cola, &mensaje, sizeof(mensaje), 0, 0);
     if (rcv < 0)
     {
         perror("Error al leer de la cola");
     }
  
-    int i = 0;
-    strcpy(mensaje.data, mensaje_enviar_char);
-    // Aquí es donde enviarías la respuesta al cliente
-    // Puedes utilizar la información almacenada en cliaddr
-    // para obtener la dirección IP y el puerto del cliente
-    // y luego enviar la respuesta utilizando sendto.
-
-    sendto(sockfd, (char*)&mensaje, sizeof(mensaje), 0,
+    mensaje.tipo = 1;
+    sendto(sockfd, (struct Mensaje*)&mensaje, sizeof(mensaje), 0,
         (const struct sockaddr*)&cliaddr, sizeof(cliaddr));
 
     msgctl(id_cola, IPC_RMID, NULL);
