@@ -6,6 +6,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include "msgq.h"
 
 #define SERV_UDP_PORT 8524
 //Direccion saturno (donde esta el cliente)
@@ -16,17 +17,26 @@
 
 Mensaje mensaje_recibe;
 Mensaje mensaje;
+char mensaje_para_enviar[MAXSIZEDATA];
+char mensaje_para_devolver[MAXSIZEDATA];
 
+int crearCola()
+{
+	int id;
+	if ((id = msgget(MKEY2, PERMS | IPC_CREAT)) < 0)
+	{
+		perror("Error al crear la cola");
+		exit(-1);
+	}
+	return id;
+}
 
 
 main()
 {
+	int id_cola;
 	mensaje.tipo = 1;
-	char inputString[50];
-
-	printf("Introduce el comando eco: \n");
-	scanf("%49[^\n]", inputString);
-	strncpy(mensaje.data, inputString, sizeof(mensaje.data));
+	
 	//Llenamos la estructura con 0
 	struct sockaddr_in servaddr = { 0 };
 
@@ -38,12 +48,27 @@ main()
 		exit(EXIT_FAILURE);
 	}
 
+	id_cola = crearCola();
+	if (id_cola == -1) {
+		perror("Error al recibir id cola");
+		close(sockfd);
+		exit(EXIT_FAILURE);
+	}
+
 	//Datos del servidor
 	servaddr.sin_family = AF_INET;
 	servaddr.sin_port = htons(SERV_UDP_PORT);
 	servaddr.sin_addr.s_addr = inet_addr(SERV_HOST_ADDR);
 
 	mensaje.tipo = 1;
+
+	int rcv = msgrcv(id_cola, mensaje_para_enviar, MAXSIZEDATA, 0, 0);
+	if (rcv < 0)
+	{
+		perror("Error al recibir de la cola");
+	}
+
+	strcpy(mensaje.data, mensaje_para_enviar);
 
 	//Enviamos mensaje a servidor
 	int len = sendto(sockfd, (const char*)&mensaje, sizeof(mensaje),
@@ -64,8 +89,16 @@ main()
 	}
 
 	printf("Mensaje recibido del servidor\n");
-	printf("Tipo mensaje: %d\n", mensaje_recibe.tipo);
-	printf("Contenido: %s\n", mensaje_recibe.data);
+
+	strcpy(mensaje_para_devolver, mensaje_recibe.data);
+
+	int snd = msgsnd(id_cola, mensaje_para_devolver, MAXSIZEDATA, 0);
+	if (snd < 0)
+	{
+		perror("Error al enviar a la cola");
+	}
+	
+	msgctl(id_cola, IPC_RMID, NULL);
 
 	//Cerramos socket
 	close(sockfd);

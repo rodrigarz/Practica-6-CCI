@@ -6,6 +6,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include "msgq.h"
 
 #define SERV_UDP_PORT 8524
 //Direccion saturno (donde esta el cliente)
@@ -17,20 +18,17 @@
 Mensaje mensaje_recibe;
 Mensaje mensaje;
 
-char* convertirAMayusculas(const char* cadena) {
-    char* resultado = strdup(cadena); // Duplicamos la cadena original para no modificar la original
-    if (resultado == NULL) {
-        perror("failed to duplicate string");
-        exit(EXIT_FAILURE);
-    }
 
-    int i = 0;
-    while (resultado[i]) {
-        resultado[i] = toupper(resultado[i]);
-        i++;
-    }
 
-    return resultado;
+int crearCola()
+{
+    int id;
+    if ((id = msgget(MKEY1, PERMS | IPC_CREAT)) < 0)
+    {
+        perror("Error al crear la cola");
+        exit(-1);
+    }
+    return id;
 }
 
 main()
@@ -38,11 +36,19 @@ main()
     char* mensaje_manda;
     struct sockaddr_in servaddr = { 0 };
     struct sockaddr_in cliaddr = { 0 };
+    int id_cola;
 
     //Creamos el socket UDP
     int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     if (sockfd == -1) {
         perror("failed to create socket");
+        exit(EXIT_FAILURE);
+    }
+    
+    id_cola = crearCola();
+    if (id_cola == -1) {
+        perror("Error al recibir id cola");
+		close(sockfd);
         exit(EXIT_FAILURE);
     }
 
@@ -71,19 +77,35 @@ main()
     printf("Tipo: %d\n", mensaje_recibe.tipo);
 
     //Asignamos tipo 1 a solicitud de eco
-    if (mensaje_recibe.tipo == 1)
+    //if (mensaje_recibe.tipo == 1)
+    //{
+    //    mensaje_manda = convertirAMayusculas(mensaje_recibe.data);
+    //    int i = 0;
+    //    for (i; i <= strlen(mensaje_manda); i++)
+    //    {
+    //        mensaje.data[i] = mensaje_manda[i];
+    //    }
+    //    mensaje.tipo = 0;
+    //}
+    char mensaje_recibe_char[MAXSIZEDATA];
+    strcpy(mensaje_recibe_char, mensaje_recibe.data);
+    
+    int snd = msgsnd(id_cola, mensaje_recibe_char, MAXSIZEDATA, 0);
+    if (snd < 0)
     {
-        mensaje_manda = convertirAMayusculas(mensaje_recibe.data);
-        int i = 0;
-        for (i; i <= strlen(mensaje_manda); i++)
-        {
-            mensaje.data[i] = mensaje_manda[i];
-        }
-        mensaje.tipo = 0;
+        perror("Error al enviar a la cola");
     }
 
- 
+    char mensaje_enviar_char[MAXSIZEDATA];
 
+    int rcv = msgrcv(id_cola, mensaje_enviar_char, MAXSIZEDATA, 0, 0);
+    if (rcv < 0)
+    {
+        perror("Error al leer de la cola");
+    }
+ 
+    int i = 0;
+    strcpy(mensaje.data, mensaje_enviar_char);
     // Aquí es donde enviarías la respuesta al cliente
     // Puedes utilizar la información almacenada en cliaddr
     // para obtener la dirección IP y el puerto del cliente
@@ -91,6 +113,8 @@ main()
 
     sendto(sockfd, (char*)&mensaje, sizeof(mensaje), 0,
         (const struct sockaddr*)&cliaddr, sizeof(cliaddr));
+
+    msgctl(id_cola, IPC_RMID, NULL);
 
     close(sockfd);
     exit(0);
