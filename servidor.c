@@ -75,7 +75,22 @@ main()
             perror("Error al cambiar el directorio");
             exit(EXIT_FAILURE);
        }
-	}
+    }
+    else if (mensaje_recibe.comando == 3)
+    {
+        FILE* archivo = fopen(mensaje_recibe.data, "r");
+        if (archivo == NULL)
+        {
+            perror("Error al abir el archivo");
+            exit(EXIT_FAILURE);
+        }
+        size_t leido = fread(mensaje_devuelve.data, 1, MAXSIZEDATA, archivo);
+        fclose(archivo);
+        if (leido < 0)
+        {
+            perror("No se pudo leer el archivo");
+        }
+    }
 
     mensaje_devuelve.tipo = 2;
 
