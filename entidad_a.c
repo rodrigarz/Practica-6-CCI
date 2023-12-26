@@ -1,13 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-//#include "mensaje.h"
+#include "mensaje.h"
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include "msgq.h"
-#include "primitivas.h"
 
 //#define SERV_UDP_PORT 8524
 //Direccion saturno (donde esta el cliente)
@@ -20,8 +19,8 @@ Mensaje mensaje_recibe;
 Mensaje mensaje;
 char mensaje_para_enviar[MAXSIZEDATA];
 char mensaje_para_devolver[MAXSIZEDATA];
-struct sockaddr_in servaddr = { 0 };
 
+//Funcion para crear la cola con la key 2
 int crearCola()
 {
 	int id;
@@ -40,7 +39,7 @@ main()
 	mensaje.tipo = 1;
 	
 	//Llenamos la estructura con 0
-
+	struct sockaddr_in servaddr = { 0 };
 
 	//Creamos socket udp
 	int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -50,6 +49,7 @@ main()
 		exit(EXIT_FAILURE);
 	}
 
+	//Creamos la cola con la funcion definida
 	id_cola = crearCola();
 	if (id_cola == -1) {
 		perror("Error al recibir id cola");
@@ -62,12 +62,16 @@ main()
 
 	mensaje.tipo = 1;
 
+	//Recibimos de la cola de mensajes la solicitud del cliente
 	int rcv = msgrcv(id_cola, &mensaje, sizeof(mensaje), 0, 0);
 	if (rcv < 0)
 	{
 		perror("Error al recibir de la cola");
+		close(sockfd);
+		exit(EXIT_FAILURE);
 	}
 
+	//Armamos la informacion que falta en la trama
 	int serv_udp_port = mensaje.puerto;
 
 	servaddr.sin_family = AF_INET;
@@ -79,9 +83,8 @@ main()
 	mensaje.longitud = strlen(mensaje.data);
 
 	//Enviamos mensaje a servidor
-	/*int len = sendto(sockfd, (struct Mensaje*)&mensaje, sizeof(mensaje),
-		0, (const struct sockaddr*)&servaddr, sizeof(servaddr));*/
-	int len = peticion(sockfd, &servaddr, &mensaje);
+	int len = sendto(sockfd, (struct Mensaje*)&mensaje, sizeof(mensaje),
+		0, (const struct sockaddr*)&servaddr, sizeof(servaddr));
 	if (len == -1)
 	{
 		perror("failed to send");
@@ -89,8 +92,8 @@ main()
 		exit(EXIT_FAILURE);
 	}
 
-	//int n = recvfrom(sockfd, (struct Mensaje*)&mensaje_recibe, sizeof(mensaje_recibe), MSG_WAITALL, (struct sockaddr*)&servaddr, &len);
-	int n = indicacion(sockfd, &servaddr, &mensaje_recibe);
+	//Recibimos la respuesta a traves del socket
+	int n = recvfrom(sockfd, (struct Mensaje*)&mensaje_recibe, sizeof(mensaje_recibe), MSG_WAITALL, (struct sockaddr*)&servaddr, &len);
 	if (n == -1)
 	{
 		perror("Error al recibir");
@@ -100,14 +103,16 @@ main()
 
 	printf("Mensaje recibido del servidor\n");
 
-	strcpy(mensaje_para_devolver, mensaje_recibe.data);
-
+	//Enviamos por la cola la respuesta recibida
 	int snd = msgsnd(id_cola, &mensaje_recibe, sizeof(mensaje_recibe), 0);
 	if (snd < 0)
 	{
 		perror("Error al enviar a la cola");
+		close(sockfd);
+		exit(EXIT_FAILURE);
 	}
 	
+	//Borramos la cola IPC
 	msgctl(id_cola, IPC_RMID, NULL);
 
 	//Cerramos socket

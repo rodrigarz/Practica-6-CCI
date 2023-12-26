@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include "msgq.h"
+#include <unistd.h>
 
 //char mensaje_recibe[MAXSIZEDATA];
 
@@ -19,12 +20,14 @@ int main(int argc, char *argv[])
     char s;
     int puerto, pas, pid;
 
+    //Separamos la terna que identifica el destino en las variables necesarias
     if (sscanf(terna, " %d:%d:%d %c", &puerto, &pas, &pid, &s) > 4)
     {
         printf("Error al leer los argumentos");
         return -1;
     }
 
+    //Conectamos a la cola con la Key 2
     if ((id = msgget(MKEY2, 0)) < 0)
     {
         perror("No se puede acceder a la cola");
@@ -32,10 +35,11 @@ int main(int argc, char *argv[])
 
     char inputString[MAXSIZEDATA];
 
+    //En funcion del servicio solicitado mostramos y recogemos distinta informacion por pantalla
     if (pas == 20)
     {
         printf("Introduce el comando eco: \n");
-        scanf("%49[^\n]", inputString);
+        scanf("%8191[^\n]", inputString);
         strncpy(mensaje_recibe.data, inputString, strlen(inputString));
         mensaje_recibe.comando = 0;
     }
@@ -78,22 +82,27 @@ int main(int argc, char *argv[])
 
     }
 
-
+    //Rellenamos los campos restantes
         mensaje_recibe.destino = pid;
         mensaje_recibe.puerto = puerto;
         mensaje_recibe.tipo = 1; //marcamos que es peticion de servicio
+        mensaje_recibe.origen = getpid();
 
+    //Enviamos a la cola el mensaje
     int snd = msgsnd(id, &mensaje_recibe, sizeof(mensaje_recibe), 0);
     if (snd < 0)
     {
         perror("Error al enviar a la cola");
+        exit(EXIT_FAILURE);
     }
 
+    //Recibimos de la cola el mensaje, y mostramos la informacion por pantalla
     Mensaje mensaje_final;
     int rcv = msgrcv(id, &mensaje_final, sizeof(mensaje_final), 0, 0);
     if (rcv < 0)
     {
         perror("Error al leer de la cola");
+        exit(EXIT_FAILURE);
     }
 
     printf("Mensaje recibido tipo: %d\n", mensaje_final.tipo);

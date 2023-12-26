@@ -1,4 +1,4 @@
-#define MAXSIZEDATA (150)
+#define MAXSIZEDATA (128)
 
 #define MENSAJESIZE (sizeof(Mensaje)- MAXSIZEDATA)
 

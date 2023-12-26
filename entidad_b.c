@@ -1,13 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-//#include "mensaje.h"
+#include "mensaje.h"
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include "msgq.h"
-#include "primitivas.h"
 
 #define SERV_UDP_PORT 8524
 //Direccion saturno (donde esta el cliente)
@@ -20,7 +19,7 @@ Mensaje mensaje_recibe;
 Mensaje mensaje;
 
 
-
+//Creamos la cola con la key indicada
 int crearCola()
 {
     int id;
@@ -46,6 +45,7 @@ main()
         exit(EXIT_FAILURE);
     }
     
+    //Creamos la cola con la funcion definida
     id_cola = crearCola();
     if (id_cola == -1) {
         perror("Error al recibir id cola");
@@ -68,43 +68,47 @@ main()
         exit(EXIT_FAILURE);
     }
 
+    socklen_t len = sizeof(cliaddr);
 
     //Recibimos del cliente
-   /* int n = recvfrom(sockfd, (struct Mensaje*)&mensaje_recibe, sizeof(mensaje_recibe), MSG_WAITALL,
-        (struct sockaddr*)&cliaddr, &len);*/
-    int n = indicacion(sockfd, &cliaddr, &mensaje_recibe);
-    if (n < 0)
-    {
-        perror("Error al recibir indicacion");
-        close(sockfd);
-        exit(EXIT_FAILURE);
-    }
+    int n = recvfrom(sockfd, (struct Mensaje*)&mensaje_recibe, sizeof(mensaje_recibe), MSG_WAITALL,
+        (struct sockaddr*)&cliaddr, &len);
 
     printf("Received message from client\n");
-    printf("Tipo: %d\n", mensaje_recibe.comando);
+    printf("Comando: %d\n", mensaje_recibe.comando);
 
     char mensaje_recibe_char[MAXSIZEDATA];
     strcpy(mensaje_recibe_char, mensaje_recibe.data);
     
+    //Enviamos la informacion recibida a la cola
     int snd = msgsnd(id_cola, &mensaje_recibe, sizeof(mensaje_recibe), 0);
     if (snd < 0)
     {
         perror("Error al enviar a la cola");
+        close(sockfd);
+        exit(EXIT_FAILURE);
     }
 
     char mensaje_enviar_char[MAXSIZEDATA];
 
+    //Recibimos la respuesta del servidor por la cola
     int rcv = msgrcv(id_cola, &mensaje, sizeof(mensaje), 0, 0);
     if (rcv < 0)
     {
         perror("Error al leer de la cola");
+        close(sockfd);
+        exit(EXIT_FAILURE);
     }
  
-    mensaje.tipo = 1;
-    /*sendto(sockfd, (struct Mensaje*)&mensaje, sizeof(mensaje), 0,
-        (const struct sockaddr*)&cliaddr, sizeof(cliaddr));*/
-    int len = peticion(sockfd, &cliaddr, &mensaje);
+    //Armamos el nuevo mensaje y lo enviamos al socket
+    mensaje.tipo = 2;
+    mensaje.patron = 204; //11001100
+    mensaje.longitud = strlen(mensaje.data);
+    mensaje.destino = mensaje_recibe.origen;
+    sendto(sockfd, (struct Mensaje*)&mensaje, sizeof(mensaje), 0,
+        (const struct sockaddr*)&cliaddr, sizeof(cliaddr));
 
+    //Borramos la cola IPC y cerramos el socket
     msgctl(id_cola, IPC_RMID, NULL);
 
     close(sockfd);
